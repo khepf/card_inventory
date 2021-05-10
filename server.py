@@ -75,11 +75,18 @@ def get_inventory():
         cur.close() 
         connection.close()
 
-@app.route('/inventorys/<baseball_card_id>', methods=['DELETE'])
-def delete_inventory_item(baseball_card_id):
+@app.route('/inventorys/<baseball_card_id>+<front_public_id>+<back_public_id>', methods=['DELETE'])
+def delete_inventory_item(baseball_card_id, front_public_id, back_public_id):
+    connection = create_db_connection()
+    cur = connection.cursor()
+    # front_public_id = values['front_public_id']
+    # back_public_id = values['back_public_id']
     try:
-        connection = create_db_connection()
-        cur = connection.cursor()
+        print('hi')
+        if front_public_id != 0:
+            cloudinary.uploader.destroy(front_public_id)
+        if back_public_id != 0:
+            cloudinary.uploader.destroy(back_public_id)
         cur.execute("""DELETE FROM baseball_card WHERE baseball_card_id = %(baseball_card_id)s""", { 'baseball_card_id': baseball_card_id })
         connection.commit()
         response = jsonify('Employee deleted successfully!')
@@ -115,6 +122,7 @@ def post_inventory_item():
         connection = create_db_connection()
         cur = connection.cursor()
         values = request.get_json()
+        print(values)
         baseball_card_id = str(uuid.uuid4())
         brand = values['brand']
         buy_date = values['buy_date']
@@ -131,23 +139,28 @@ def post_inventory_item():
         card_image_front = values['card_image_front']
         card_image_back = values['card_image_back']
 
+
         if len(card_image_front) > 0:
             uploadedResponse = cloudinary.uploader.upload(card_image_front)
             image_front_url = uploadedResponse['url']
+            front_public_id = uploadedResponse['public_id']
         else:
             image_front_url = ""
+            front_public_id = ""
 
         if len(card_image_back) > 0:      
             uploadedResponse2 = cloudinary.uploader.upload(card_image_back)
             image_back_url = uploadedResponse2['url']
+            back_public_id = uploadedResponse2['public_id']
         else:
             image_back_url = ""
+            back_public_id = ""
 
         sqlQuery = """INSERT INTO baseball_card(baseball_card_id, brand, buy_date, buy_price, card_condition, card_number,
-        description, first_name, last_name, profit_loss, sell_date, sell_price, year, card_image_front, card_image_back) 
-        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+        description, first_name, last_name, profit_loss, sell_date, sell_price, year, card_image_front, card_image_back, front_public_id, back_public_id) 
+        VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
-        bind_data = (baseball_card_id, brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url)
+        bind_data = (baseball_card_id, brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, front_public_id, back_public_id)
 
         cur.execute(sqlQuery, bind_data)
         connection.commit()
@@ -163,10 +176,10 @@ def post_inventory_item():
 @app.route('/inventorys/<baseball_card_id>', methods=['PUT'])
 def update_inventory_item(baseball_card_id):
     try:
+        values = request.get_json()
         connection = create_db_connection()
         cur = connection.cursor()
-        values = request.get_json()
-
+   
         brand = values['brand']
         buy_date = values['buy_date']
         buy_price = Decimal(values['buy_price'])
@@ -181,15 +194,42 @@ def update_inventory_item(baseball_card_id):
         profit_loss = (sell_price - buy_price)
         card_image_front = values['card_image_front']
         card_image_back = values['card_image_back']
-    
-        uploadedResponse = cloudinary.uploader.upload(card_image_front)
-        uploadedResponse2 = cloudinary.uploader.upload(card_image_back)
-        image_front_url = uploadedResponse['url']
-        image_back_url = uploadedResponse2['url']
+        front_public_id = values['front_public_id']
+        back_public_id = values['back_public_id']
+
+        if card_image_front == "":
+            print("there must not be a front image here")
+            image_front_url = ""
+        elif len(card_image_front) > 100:
+            if front_public_id != "":
+                cloudinary.uploader.destroy(front_public_id)
+
+            uploadedResponse = cloudinary.uploader.upload(card_image_front)
+            image_front_url = uploadedResponse['url']
+            front_public_id = uploadedResponse['public_id']
+            print("this must be a different front image")    
+        else:
+            image_front_url = card_image_front
+            print("This must be the same image")
+        
+        if card_image_back == "":
+            print("there must not be a back image here")
+            image_back_url = ""
+        elif len(card_image_back) > 100:
+            if back_public_id != "":
+                cloudinary.uploader.destroy(back_public_id)
+
+            uploadedResponse2 = cloudinary.uploader.upload(card_image_back)
+            image_back_url = uploadedResponse2['url']
+            back_public_id = uploadedResponse2['public_id']
+            print("this must be a different back image")   
+        else:
+            image_back_url = card_image_back
+            print("This must be the same image")
 
         sqlQuery = """UPDATE baseball_card SET brand=%s, buy_date=%s, buy_price=%s, card_condition=%s, card_number=%s,
-        description=%s, first_name=%s, last_name=%s, profit_loss=%s, sell_date=%s, sell_price=%s, year=%s, card_image_front=%s, card_image_back=%s WHERE baseball_card_id=%s"""
-        bind_data = (brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, baseball_card_id)
+        description=%s, first_name=%s, last_name=%s, profit_loss=%s, sell_date=%s, sell_price=%s, year=%s, card_image_front=%s, card_image_back=%s, front_public_id=%s, back_public_id=%s WHERE baseball_card_id=%s"""
+        bind_data = (brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, front_public_id, back_public_id, baseball_card_id)
 
         cur.execute(sqlQuery, bind_data)
         connection.commit()
