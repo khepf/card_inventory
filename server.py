@@ -189,9 +189,9 @@ def update_inventory_item(baseball_card_id):
         first_name = values['first_name']
         last_name = values['last_name']
         sell_date = values['sell_date']
-        sell_price = Decimal(values['sell_price'])
+        sell_price = Decimal(values['sell_price']) if values['sell_price'] != "" else ""
         year = values['year']
-        profit_loss = (sell_price - buy_price)
+        profit_loss = (sell_price - buy_price) if values['sell_price'] != "" and values['buy_price'] != "" else ""
         card_image_front = values['card_image_front']
         card_image_back = values['card_image_back']
         front_public_id = values['front_public_id']
