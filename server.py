@@ -87,17 +87,18 @@ def get_inventory(acc_num):
         cur.close() 
         connection.close()
 
-@app.route('/inventorys/<baseball_card_id>+<front_public_id>+<back_public_id>', methods=['DELETE'])
-def delete_inventory_item(baseball_card_id, front_public_id, back_public_id):
+@app.route('/inventorys/<account_number>+<baseball_card_id>+<front_public_id>+<back_public_id>', methods=['DELETE'])
+def delete_inventory_item(account_number, baseball_card_id, front_public_id, back_public_id):
     connection = create_db_connection()
     cur = connection.cursor()
+    account_number = int(account_number)
 
     try:
         if front_public_id != 0:
             cloudinary.uploader.destroy(front_public_id)
         if back_public_id != 0:
             cloudinary.uploader.destroy(back_public_id)
-        cur.execute("""DELETE FROM baseball_card WHERE baseball_card_id = %(baseball_card_id)s""", { 'baseball_card_id': baseball_card_id })
+        cur.execute("""DELETE FROM `%(account_number)s` WHERE baseball_card_id = %(baseball_card_id)s""", { 'account_number': account_number, 'baseball_card_id': baseball_card_id })
         connection.commit()
         response = jsonify('Employee deleted successfully!')
         response.status_code = 200
