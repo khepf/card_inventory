@@ -70,7 +70,6 @@ cloudinary.config(
 @app.route('/inventorys/<acc_num>', methods=['GET'])
 def get_inventory(acc_num):
     print(acc_num)
-    # acc_num= int(acc_num)
     try:
         connection = create_db_connection()
         print(connection)
@@ -109,12 +108,13 @@ def delete_inventory_item(baseball_card_id, front_public_id, back_public_id):
         cur.close() 
         connection.close()
 
-@app.route('/inventorys/<baseball_card_id>', methods=['GET'])
-def get_inventory_item(baseball_card_id):
+@app.route('/inventorys/<acc_num>/<baseball_card_id>', methods=['GET'])
+def get_inventory_item(acc_num, baseball_card_id):
     try:
+        acc_num = int(acc_num)
         connection = create_db_connection()
         cur = connection.cursor()
-        ok_happy = cur.execute("""SELECT * FROM baseball_card WHERE baseball_card_id = %s""", (baseball_card_id))
+        cur.execute("""SELECT * FROM `%s` WHERE baseball_card_id = %s""", (acc_num, baseball_card_id))
         row_headers=[x[0] for x in cur.description]
         rv = cur.fetchall()
         json_data=[]
@@ -186,9 +186,10 @@ def post_inventory_item():
         cur.close() 
         connection.close()
 
-@app.route('/inventorys/<baseball_card_id>', methods=['PUT'])
-def update_inventory_item(baseball_card_id):
+@app.route('/inventorys/<account_number>/<baseball_card_id>', methods=['PUT'])
+def update_inventory_item(baseball_card_id, account_number):
     try:
+        account_number = int(account_number)
         values = request.get_json()
         connection = create_db_connection()
         cur = connection.cursor()
@@ -240,9 +241,9 @@ def update_inventory_item(baseball_card_id):
             image_back_url = card_image_back
             print("This must be the same image")
 
-        sqlQuery = """UPDATE baseball_card SET brand=%s, buy_date=%s, buy_price=%s, card_condition=%s, card_number=%s,
+        sqlQuery = """UPDATE `%s` SET brand=%s, buy_date=%s, buy_price=%s, card_condition=%s, card_number=%s,
         description=%s, first_name=%s, last_name=%s, profit_loss=%s, sell_date=%s, sell_price=%s, year=%s, card_image_front=%s, card_image_back=%s, front_public_id=%s, back_public_id=%s WHERE baseball_card_id=%s"""
-        bind_data = (brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, front_public_id, back_public_id, baseball_card_id)
+        bind_data = (account_number, brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, front_public_id, back_public_id, baseball_card_id)
 
         cur.execute(sqlQuery, bind_data)
         connection.commit()
