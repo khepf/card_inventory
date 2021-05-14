@@ -2,7 +2,14 @@ import mysql.connector
 from mysql.connector import Error
 import pandas as pd
 from flask_sqlalchemy import SQLAlchemy
-from flask import Flask, jsonify, request, send_from_directory
+import flask_praetorian
+
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
+
+from flask import Flask, jsonify, request, send_from_directory, render_template, redirect, url_for, session
 from flask_cors import CORS
 import uuid
 import cloudinary
@@ -15,6 +22,10 @@ from dotenv import load_dotenv, find_dotenv
 app = Flask(__name__)
 CORS(app)
 load_dotenv(find_dotenv())
+
+app.config["JWT_SECRET_KEY"] = "super-secret"  # Change this!
+jwt = JWTManager(app)
+
 
 def create_db_connection():
     connection = None
@@ -56,13 +67,15 @@ cloudinary.config(
   api_secret = os.environ.get("CLOUDINARY_API_SECRET")  
 )
 
-
-@app.route('/inventorys', methods=['GET'])
-def get_inventory():
+@app.route('/inventorys/<acc_num>', methods=['GET'])
+def get_inventory(acc_num):
+    print(acc_num)
+    # acc_num= int(acc_num)
     try:
         connection = create_db_connection()
+        print(connection)
         cur = connection.cursor()
-        cur.execute("""SELECT * FROM baseball_card""")
+        cur.execute("""SELECT * FROM `%s`""" % (acc_num))
         row_headers=[x[0] for x in cur.description]
         rv = cur.fetchall()
         json_data=[]
@@ -79,10 +92,8 @@ def get_inventory():
 def delete_inventory_item(baseball_card_id, front_public_id, back_public_id):
     connection = create_db_connection()
     cur = connection.cursor()
-    # front_public_id = values['front_public_id']
-    # back_public_id = values['back_public_id']
+
     try:
-        print('hi')
         if front_public_id != 0:
             cloudinary.uploader.destroy(front_public_id)
         if back_public_id != 0:
@@ -103,7 +114,7 @@ def get_inventory_item(baseball_card_id):
     try:
         connection = create_db_connection()
         cur = connection.cursor()
-        ok_happy = cur.execute("""SELECT * FROM baseball_card WHERE baseball_card_id = %(baseball_card_id)s""", { 'baseball_card_id': baseball_card_id })
+        ok_happy = cur.execute("""SELECT * FROM baseball_card WHERE baseball_card_id = %s""", (baseball_card_id))
         row_headers=[x[0] for x in cur.description]
         rv = cur.fetchall()
         json_data=[]
@@ -138,6 +149,8 @@ def post_inventory_item():
         year = values['year']
         card_image_front = values['card_image_front']
         card_image_back = values['card_image_back']
+        account_number = values['account_number']
+        account_token = values['account_token']
 
 
         if len(card_image_front) > 0:
@@ -156,11 +169,11 @@ def post_inventory_item():
             image_back_url = ""
             back_public_id = ""
 
-        sqlQuery = """INSERT INTO baseball_card(baseball_card_id, brand, buy_date, buy_price, card_condition, card_number,
+        sqlQuery = """INSERT INTO `%s` (baseball_card_id, brand, buy_date, buy_price, card_condition, card_number,
         description, first_name, last_name, profit_loss, sell_date, sell_price, year, card_image_front, card_image_back, front_public_id, back_public_id) 
         VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"""
 
-        bind_data = (baseball_card_id, brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, front_public_id, back_public_id)
+        bind_data = (account_number, baseball_card_id, brand, buy_date, buy_price, card_condition, card_number, description, first_name, last_name, profit_loss, sell_date, sell_price, year, image_front_url, image_back_url, front_public_id, back_public_id)
 
         cur.execute(sqlQuery, bind_data)
         connection.commit()
@@ -241,6 +254,46 @@ def update_inventory_item(baseball_card_id):
     finally:
         cur.close() 
         connection.close()
+
+# Create a route to authenticate your users and return JWTs. The
+# create_access_token() function is used to actually generate the JWT.
+@app.route("/login", methods=["POST"])
+def login():
+    username = request.json.get("username", None)
+    password = request.json.get("password", None)
+    if username != "test" or password != "test":
+        return jsonify({"msg": "Bad username or password"}), 401
+
+    if username and password:
+        try:
+            connection = create_db_connection()
+            cur = connection.cursor()
+            cur.execute("""SELECT * FROM accounts WHERE username = %(username)s""", {'username': username})
+            access_token = create_access_token(identity=username)
+            account_data_from_db = cur.fetchone()
+            return_obj = {
+                "account_number": account_data_from_db[0],
+                "username": account_data_from_db[1],
+                "token": access_token
+            }
+            
+            return jsonify(return_obj)
+        except Error as err:
+            print(f"Error: '{err}'")
+        finally:
+            cur.close() 
+            connection.close()
+    else: return "No username or no password"
+
+# Protect a route with jwt_required, which will kick out requests
+# without a valid JWT present.
+@app.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    # Access the identity of the current user with get_jwt_identity
+    current_user = get_jwt_identity()
+    return jsonify(logged_in_as=current_user), 200
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
